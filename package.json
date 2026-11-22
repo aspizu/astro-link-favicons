@@ -1,0 +1,29 @@
+{
+  "name": "astro-link-favicons",
+  "version": "1.0.0",
+  "description": "Adds favicons to external links automatically.",
+  "keywords": [],
+  "license": "MIT",
+  "author": {
+    "name": "aspizu",
+    "email": "hi@aspiz.uk",
+    "url": "https://aspiz.uk"
+  },
+  "type": "module",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {
+    "lefthook": "^2.2.2",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
+    "oxlint-plugin-aspizuism": "^1.0.6",
+    "oxlint-tsgolint": "^7.0.2008"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": ">=12.0.0",
+      "onFail": "warn"
+    }
+  }
+}
