@@ -191,7 +191,13 @@ importers:
       sirv:
         specifier: ^3.0.2
         version: 3.0.2
+      unist-util-visit:
+        specifier: ^5.2.0
+        version: 5.2.0
     devDependencies:
+      '@types/hast':
+        specifier: ^3.0.5
+        version: 3.0.5
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -219,6 +225,9 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
 
 packages:
 

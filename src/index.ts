@@ -5,7 +5,10 @@ import {fileURLToPath} from "node:url"
 
 import type {AstroIntegration} from "astro"
 import * as cheerio from "cheerio"
+import type * as hast from "hast"
 import sirv from "sirv"
+import type * as unified from "unified"
+import {visit} from "unist-util-visit"
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
@@ -122,6 +125,23 @@ async function _copyToBuildDir(dir: URL) {
   await fs.cp(cacheDir, out, {recursive: true})
 }
 
+const rehypePlugin: unified.Plugin<[], hast.Root> = () => {
+  return async (tree) => {
+    const links: hast.Element[] = []
+    visit(tree, "element", (node) => {
+      if (node.tagName === "a" && node.properties.href) {
+        links.push(node)
+      }
+    })
+    for (const link of links) {
+      const url = new URL(link.properties.href!)
+      const file = await _getCachedFavicon(url.hostname)
+      if (!file || !cacheDir) continue
+      link.properties.style = `--favicon: url("_astro/_favicons/${path.relative(cacheDir, file)}")`
+    }
+  }
+}
+
 const integration: AstroIntegration = {
   name: "astro-link-favicons",
   hooks: {
@@ -146,4 +166,4 @@ const integration: AstroIntegration = {
   },
 }
 
-export default integration
+export {integration, rehypePlugin}
