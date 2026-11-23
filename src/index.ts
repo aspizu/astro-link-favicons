@@ -1,14 +1,32 @@
+import * as crypto from "node:crypto"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {fileURLToPath} from "node:url"
 
 import type {AstroIntegration} from "astro"
 import * as cheerio from "cheerio"
+import sirv from "sirv"
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-let cacheDir = ""
+let srcDir: string | null = null
+let cacheDir: string | null = null
+
+async function _wget(url: string) {
+  try {
+    const res = await fetch(url, {
+      headers: {"User-Agent": UA},
+      signal: AbortSignal.timeout(5_000),
+    })
+    if (!res.ok) {
+      throw new Error(`failed to fetch ${url}:\n${res.status} ${res.statusText}`)
+    }
+    return res
+  } catch {
+    throw new Error(`failed to fetch ${url}`)
+  }
+}
 
 async function _getDomains(file: string, out: Set<string>) {
   const text = await fs.readFile(file, {encoding: "utf8"})
@@ -28,11 +46,7 @@ async function _getAllDomains(dir: string) {
 }
 
 async function _getFaviconURL(domain: string) {
-  const res = await fetch(`https://${domain}/`, {
-    headers: {
-      "User-Agent": UA,
-    },
-  })
+  const res = await _wget(`https://${domain}/`)
   const $ = cheerio.load(await res.text())
   const href = $('head > link[rel="icon"]').attr("href")
   if (!href) {
@@ -47,7 +61,18 @@ async function _getFaviconURL(domain: string) {
   return `https://${domain}/${href}`
 }
 
+async function _getCachedFavicon(domain: string) {
+  if (!cacheDir) {
+    throw new Error("cacheDir uninitialized")
+  }
+  const paths = await Array.fromAsync(fs.glob(path.join(cacheDir, domain, "*")))
+  return paths.at(0)
+}
+
 async function _downloadFavicon(domain: string) {
+  if (!cacheDir) {
+    throw new Error("cacheDir uninitialized")
+  }
   const faviconURL = await _getFaviconURL(domain)
   if (!faviconURL) {
     return false
@@ -61,25 +86,64 @@ async function _downloadFavicon(domain: string) {
   ) {
     return true
   }
-  await fs.mkdir(outdir, {recursive: true})
-  const res = await fetch(faviconURL, {headers: {"User-Agent": UA}})
-  await fs.writeFile(
-    path.join(outdir, `favicon${path.extname(faviconURL)}`),
-    new Uint8Array(await res.arrayBuffer()),
-  )
+  const res = await _wget(faviconURL)
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  const hash = crypto.createHash("sha256").update(bytes).digest("base64url").slice(0, 8)
+  await fs.mkdir(outdir, {recursive: true}).catch(() => {})
+  await fs.writeFile(path.join(outdir, `${hash}${path.extname(faviconURL)}`), bytes)
   return true
 }
 
-export default {
+async function _downloadAllFavicons() {
+  if (!srcDir) {
+    throw new Error("srcDir uninitialized")
+  }
+  const domains = [...(await _getAllDomains(srcDir))]
+  await Promise.all(
+    domains.map(async (domain) => {
+      try {
+        await _downloadFavicon(domain)
+        const favicon = await _getCachedFavicon(domain)
+        if (!favicon) return
+        console.log(favicon)
+      } catch (e) {
+        console.error(e instanceof Error ? (e.stack ?? e.message) : String(e))
+      }
+    }),
+  )
+}
+
+async function _copyToBuildDir(dir: URL) {
+  if (!cacheDir) {
+    throw new Error("cacheDir uninitialized")
+  }
+  const out = path.join(fileURLToPath(dir), "_astro", "_favicons")
+  await fs.mkdir(path.dirname(out), {recursive: true}).catch(() => {})
+  await fs.cp(cacheDir, out, {recursive: true})
+}
+
+const integration: AstroIntegration = {
   name: "astro-link-favicons",
   hooks: {
-    "astro:config:done": async ({config}) => {
+    "astro:config:setup": async ({config}) => {
       cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
-      await fs.mkdir(cacheDir, {recursive: true})
+      await fs.mkdir(cacheDir, {recursive: true}).catch(() => {})
+      srcDir = fileURLToPath(config.srcDir)
     },
     "astro:routes:resolved": async () => {
-      const urls = [...(await _getAllDomains("src"))]
-      await Promise.all(urls.map(_downloadFavicon))
+      await _downloadAllFavicons()
+    },
+    "astro:build:done": async ({dir}) => {
+      await _copyToBuildDir(dir)
+    },
+    "astro:server:setup": async ({server}) => {
+      if (!cacheDir) {
+        throw new Error("cacheDir uninitialized")
+      }
+      const base = server.config.base.replace(/\/+$/, "")
+      server.middlewares.use(`${base}/_astro/_favicons`, sirv(cacheDir))
     },
   },
-} satisfies AstroIntegration
+}
+
+export default integration
