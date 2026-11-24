@@ -10,6 +10,7 @@ import sirv from "sirv"
 import type * as unified from "unified"
 import {visit} from "unist-util-visit"
 
+const EXTENSIONS = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp"])
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -105,11 +106,14 @@ async function _downloadFavicon(domain: string) {
   ) {
     return true
   }
+  const extension = path.posix.extname(new URL(faviconURL).pathname).toLowerCase()
+  if (!EXTENSIONS.has(extension)) {
+    return false
+  }
   const res = await _wget(faviconURL)
   const bytes = new Uint8Array(await res.arrayBuffer())
   const hash = crypto.createHash("sha256").update(bytes).digest("base64url").slice(0, 8)
   await fs.mkdir(outdir, {recursive: true}).catch(() => {})
-  const extension = path.posix.extname(new URL(faviconURL).pathname)
   await fs.writeFile(path.join(outdir, `${hash}${extension}`), bytes)
   return true
 }
