@@ -42,6 +42,12 @@ a[style*="--favicon:"]::before {
 }
 ```
 
+If an SVG favicon uses `prefers-color-scheme`, add `color-scheme: dark;` to
+the `::before` rule to display its dark theme, or `color-scheme: light;` for
+its light theme. SVGs with fixed colors keep their original appearance.
+Some Safari versions follow the system theme even with this override.
+See [WebKit issue 316640](https://bugs.webkit.org/show_bug.cgi?id=316640).
+
 Write links as usual in Markdown.
 
 ```md
