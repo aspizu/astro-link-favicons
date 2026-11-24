@@ -1,0 +1,8 @@
+a[style*="--favicon:"]::before {
+  content: "";
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.25em;
+  background: var(--favicon) center / contain no-repeat;
+}

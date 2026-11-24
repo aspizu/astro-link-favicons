@@ -10,7 +10,16 @@ import sirv from "sirv"
 import type * as unified from "unified"
 import {visit} from "unist-util-visit"
 
-const EXTENSIONS = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp"])
+const EXTENSIONS = new Set([
+  ".avif",
+  ".gif",
+  ".ico",
+  ".jpeg",
+  ".jpg",
+  ".png",
+  ".svg",
+  ".webp",
+])
 const CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 const FAILURE_MARKER = ".failed"
 const UA =
@@ -73,17 +82,9 @@ async function _getAllDomains(dir: string) {
 async function _getFaviconURL(domain: string) {
   const res = await _wget(`https://${domain}/`)
   const $ = cheerio.load(await res.text())
-  const href = $('head > link[rel="icon"]').attr("href")
-  if (!href) {
-    return null
-  }
-  if (href.startsWith("http://") || href.startsWith("https://")) {
-    return href
-  }
-  if (href.startsWith("/")) {
-    return `https://${domain}${href}`
-  }
-  return `https://${domain}/${href}`
+  const href = $('head > link[rel~="icon" i][href]').attr("href")
+  const url = href && URL.parse(href, res.url)
+  return url && (url.protocol === "https:" || url.protocol === "http:") ? url : null
 }
 
 async function _getCachedFavicon(domain: string) {
@@ -109,12 +110,21 @@ async function _fetchFavicon(domain: string) {
   if (!faviconURL) {
     return null
   }
-  const extension = path.posix.extname(new URL(faviconURL).pathname).toLowerCase()
+  const extension = path.posix.extname(faviconURL.pathname).toLowerCase()
   if (!EXTENSIONS.has(extension)) {
     return null
   }
-  const res = await _wget(faviconURL)
-  const bytes = new Uint8Array(await res.arrayBuffer())
+  const res = await _wget(faviconURL.href)
+  const bytes = Buffer.from(await res.arrayBuffer())
+  if (extension === ".svg") {
+    const image = `data:image/svg+xml;base64,${bytes.toString("base64")}`
+    return {
+      bytes: Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><image width="32" height="32" href="${image}"/></svg>`,
+      ),
+      extension,
+    }
+  }
   return {bytes, extension}
 }
 
@@ -125,7 +135,7 @@ async function _isFresh(file: string) {
     }
     throw e
   })
-  if (!stat) {
+  if (!stat?.size) {
     return null
   }
   return Date.now() - stat.mtimeMs <= CACHE_MAX_AGE
@@ -147,7 +157,7 @@ async function _downloadFavicon(domain: string) {
   })
   await fs.mkdir(outdir, {recursive: true})
   if (!favicon) {
-    await fs.writeFile(marker, "")
+    await fs.writeFile(marker, "failed\n")
     return previous
   }
   const {bytes, extension} = favicon
@@ -239,7 +249,7 @@ const integration: AstroIntegration = {
       if (!faviconPath) {
         throw new Error("faviconPath uninitialized")
       }
-      server.middlewares.use(faviconPath, sirv(cacheDir))
+      server.middlewares.use(faviconPath, sirv(cacheDir, {dev: true}))
     },
   },
 }
