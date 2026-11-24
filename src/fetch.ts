@@ -32,7 +32,7 @@ interface IconLink {
   sizes: string[]
 }
 
-function _iconExtension({url, contentType}: IconLink) {
+function _iconExtension({url, contentType}: Pick<IconLink, "url" | "contentType">) {
   const mime = contentType?.split(";")[0].trim().toLowerCase()
   const extension = path.posix.extname(url.pathname).toLowerCase()
   if (!mime || EXTENSIONS[extension]?.includes(mime)) {
@@ -106,10 +106,12 @@ function _selectIcon(links: IconLink[]) {
   return _largestIcon(icons.map((link) => ({link, extension: ".ico"})))
 }
 
-async function _downloadIcon(url: URL, extension: string) {
+async function _downloadIcon(url: URL, extension?: string) {
   const res = await _wget(url.href)
   const contentType = res.headers.get("content-type")
-  if (/^(?:text\/html|application\/xhtml\+xml)\b/i.test(contentType ?? "")) {
+  extension ??= _iconExtension({url: new URL(res.url), contentType})
+  const isHtml = /^(?:text\/html|application\/xhtml\+xml)\b/i.test(contentType ?? "")
+  if (!Object.hasOwn(EXTENSIONS, extension) || isHtml) {
     await res.body?.cancel()
     return null
   }
@@ -150,7 +152,10 @@ function _getIconLinks(html: string, base: string) {
   return Array.from(icons.values())
 }
 
-export async function fetchFavicon(domain: string) {
+export async function fetchFavicon(domain: string, override?: URL) {
+  if (override) {
+    return _downloadIcon(override)
+  }
   const res = await _wget(`https://${domain}/`)
   const links = _getIconLinks(await res.text(), res.url)
   const selected = _selectIcon(links)

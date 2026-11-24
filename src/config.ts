@@ -9,16 +9,39 @@ export class FaviconConfig {
   readonly faviconPath: string
   readonly srcDir: string
   readonly siteHostname: string | undefined
+  readonly overrides = new Map<string, URL>()
 
   constructor(
     config: Pick<AstroConfig, "base" | "cacheDir" | "srcDir" | "site">,
     assetsDir: string,
+    overrides?: Record<string, string>,
   ) {
     this.cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
     this.faviconDir = path.posix.join(assetsDir, "_favicons")
     this.faviconPath = path.posix.join("/", config.base, this.faviconDir)
     this.srcDir = fileURLToPath(config.srcDir)
-    this.siteHostname = config.site ? new URL(config.site).hostname : undefined
+    if (config.site) {
+      this.siteHostname = new URL(config.site).hostname
+    }
+    for (const [key, value] of Object.entries(overrides ?? {})) {
+      const host = URL.parse(`https://${key}`)
+      const hasInvalidHostCharacter = /[\\/@?#%*\s]/u.test(key)
+      if (
+        !host ||
+        hasInvalidHostCharacter ||
+        (key.includes(":") && !key.endsWith("]")) ||
+        host.hostname === "." ||
+        host.hostname === ".."
+      ) {
+        throw new Error(`Invalid favicon override hostname: ${key}`)
+      }
+      const url = URL.parse(value)
+      const hasHttpPrefix = /^https?:\/\//i.test(value)
+      if (!url || !hasHttpPrefix || !["http:", "https:"].includes(url.protocol)) {
+        throw new Error(`Expected an absolute HTTP(S) favicon URL for ${key}`)
+      }
+      this.overrides.set(host.hostname, url)
+    }
   }
 }
 

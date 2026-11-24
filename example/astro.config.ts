@@ -4,7 +4,7 @@ import {defineConfig} from "astro/config"
 
 export default defineConfig({
   site: "https://example.com",
-  integrations: [favicons.integration],
+  integrations: [favicons.integration()],
   markdown: {
     processor: unified({rehypePlugins: [favicons.rehypePlugin]}),
   },

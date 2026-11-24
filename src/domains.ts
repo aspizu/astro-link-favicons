@@ -5,7 +5,8 @@ export function getExternalHostname(
   href: string,
   siteHostname: string | undefined,
 ): string | null {
-  if (!/^https?:\/\//i.test(href)) {
+  const hasHttpPrefix = /^https?:\/\//i.test(href)
+  if (!hasHttpPrefix) {
     return null
   }
   try {
