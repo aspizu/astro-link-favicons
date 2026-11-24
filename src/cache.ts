@@ -18,7 +18,9 @@ export async function getCachedFavicon(cacheDir: string | null, domain: string) 
     }
     throw e
   })
-  const icon = entries.find((e) => e.isFile() && EXTENSIONS.has(path.extname(e.name)))
+  const icon = entries.find(
+    (e) => e.isFile() && Object.hasOwn(EXTENSIONS, path.extname(e.name)),
+  )
   if (!icon) {
     return null
   }
