@@ -22,7 +22,7 @@ import {defineConfig} from "astro/config"
 
 export default defineConfig({
   site: "https://example.com",
-  integrations: [favicons.integration],
+  integrations: [favicons.integration()],
   markdown: {
     processor: unified({rehypePlugins: [favicons.rehypePlugin]}),
   },
@@ -56,6 +56,20 @@ Read the [Python beginner's guide](https://www.python.org/about/gettingstarted/)
 
 See the [example site](./example) for a working configuration and Markdown page.
 
+## Override a favicon
+
+Choose a favicon for a specific site. Give each subdomain its own entry.
+
+```ts
+integrations: [
+  favicons.integration({
+    overrides: {
+      "github.com": "https://github.githubassets.com/favicons/favicon-dark.svg",
+    },
+  }),
+]
+```
+
 ## Look up a favicon
 
 Pass a link to `getFaviconUrl` in Astro frontmatter as a string or `URL`.
@@ -69,6 +83,7 @@ import {getFaviconUrl} from "astro-link-favicons"
 const href = "https://www.python.org/"
 const icon = await getFaviconUrl(href)
 ---
+
 <a href={href}>{icon && <img src={icon} width="16" height="16" alt="" />} Python</a>
 ```
 

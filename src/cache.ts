@@ -6,6 +6,7 @@ import {EXTENSIONS, fetchFavicon} from "./fetch"
 
 const CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 const FAILURE_MARKER = ".failed"
+const OVERRIDE_MARKER = ".override"
 
 export async function getCachedFavicon(cacheDir: string | null, domain: string) {
   if (!cacheDir) {
@@ -53,19 +54,48 @@ async function _isFresh(file: string) {
   return Date.now() - stat.mtimeMs <= CACHE_MAX_AGE
 }
 
-export async function downloadFavicon(cacheDir: string, domain: string) {
+export async function downloadFavicon(
+  cacheDir: string,
+  domain: string,
+  override?: URL,
+) {
   const outdir = path.join(cacheDir, domain)
   const marker = path.join(outdir, FAILURE_MARKER)
-  const previous = await getCachedFavicon(cacheDir, domain)
+  const overrideFile = path.join(outdir, OVERRIDE_MARKER)
+  const overrideUrl = override?.href
+  const cachedOverrideUrl = await fs.readFile(overrideFile, "utf8").catch((error) => {
+    if (error.code !== "ENOENT") {
+      throw error
+    }
+    return null
+  })
+  let previous = await getCachedFavicon(cacheDir, domain)
+  if (overrideUrl !== cachedOverrideUrl) {
+    if (previous) {
+      await fs.rm(previous, {force: true})
+    }
+    previous = null
+    await fs.rm(marker, {force: true})
+    if (overrideUrl) {
+      await fs.mkdir(outdir, {recursive: true})
+      await fs.writeFile(overrideFile, overrideUrl)
+    } else {
+      await fs.rm(overrideFile, {force: true})
+    }
+  }
   if ((previous && (await _isFresh(previous))) || (await _isFresh(marker))) {
     return previous
   }
-  const favicon = await fetchFavicon(domain).catch((e) => {
+  const favicon = await fetchFavicon(domain, override).catch((e) => {
     console.error(e)
     return null
   })
   await fs.mkdir(outdir, {recursive: true})
   if (!favicon) {
+    if (override && previous) {
+      await fs.rm(previous, {force: true})
+      previous = null
+    }
     await fs.writeFile(marker, "failed\n")
     return previous
   }
@@ -84,6 +114,6 @@ export async function copyFavicons(cacheDir: string, out: string) {
   await fs.mkdir(path.dirname(out), {recursive: true})
   await fs.cp(cacheDir, out, {
     recursive: true,
-    filter: (file) => path.basename(file) !== FAILURE_MARKER,
+    filter: (file) => ![FAILURE_MARKER, OVERRIDE_MARKER].includes(path.basename(file)),
   })
 }

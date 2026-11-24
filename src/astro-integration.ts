@@ -14,9 +14,11 @@ async function _downloadAllFaviconsInner() {
   const domains = [...(await getAllDomains(config.srcDir, config.siteHostname))]
   await Promise.all(
     domains.map((domain) =>
-      downloadFavicon(config.cacheDir, domain).catch((e) => {
-        console.error(e)
-      }),
+      downloadFavicon(config.cacheDir, domain, config.overrides.get(domain)).catch(
+        (e) => {
+          console.error(e)
+        },
+      ),
     ),
   )
 }
@@ -40,18 +42,18 @@ const vitePlugin: NonNullable<ViteUserConfig["plugins"]>[number] = {
     order: "pre",
     async handler(ctx) {
       if (this.environment.name !== "client" || ctx.type === "delete") return
-      if (!/\.(html|md|mdx|astro)$/i.test(ctx.file)) return
+      const isSourceFile = /\.(html|md|mdx|astro)$/i.test(ctx.file)
+      if (!isSourceFile) return
       await _downloadAllFavicons()
     },
   },
 }
 
-export async function configSetup({
-  config,
-  command,
-  updateConfig,
-}: HookParameters<"astro:config:setup">) {
-  const settings = new FaviconConfig(config, config.build.assets)
+export async function configSetup(
+  {config, command, updateConfig}: HookParameters<"astro:config:setup">,
+  overrides?: Record<string, string>,
+) {
+  const settings = new FaviconConfig(config, config.build.assets, overrides)
   faviconConfig.value = settings
   await fs.mkdir(settings.cacheDir, {recursive: true})
   updateConfig({
