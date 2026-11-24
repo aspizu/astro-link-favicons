@@ -32,11 +32,9 @@ export default defineConfig({
 Add this rule to your global stylesheet to display the icon before the link text.
 
 ```css
-a[style*="--favicon:"]::before {
-  content: "";
-  display: inline-block;
-  width: 1em;
-  height: 1em;
+a[style*="--favicon:"]:where(:not(:has(img)))::before {
+  content: "\2060";
+  padding-inline-start: 1em;
   margin-inline-end: 0.25em;
   background: var(--favicon) center / contain no-repeat;
 }
