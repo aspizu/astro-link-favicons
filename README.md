@@ -17,15 +17,14 @@ your site's URL to skip absolute links to your own hostname.
 
 ```ts
 import {unified} from "@astrojs/markdown-remark"
-import astroLinkFavicons from "astro-link-favicons/astro-integration"
-import rehypeLinkFavicons from "astro-link-favicons/rehype-plugin"
+import favicons from "astro-link-favicons"
 import {defineConfig} from "astro/config"
 
 export default defineConfig({
   site: "https://example.com",
-  integrations: [astroLinkFavicons],
+  integrations: [favicons.integration],
   markdown: {
-    processor: unified({rehypePlugins: [rehypeLinkFavicons]}),
+    processor: unified({rehypePlugins: [favicons.rehypePlugin]}),
   },
 })
 ```
@@ -50,6 +49,21 @@ Read the [Python beginner's guide](https://www.python.org/about/gettingstarted/)
 ```
 
 See the [example site](./example) for a working configuration and Markdown page.
+
+## Look up a favicon
+
+Use `getFaviconUrl` in Astro frontmatter to get a URL under `_astro/_favicons/`
+with the site's configured `base` path. It accepts a
+string or `URL` and returns `null` for local links or when no favicon is cached.
+
+```astro
+---
+import {getFaviconUrl} from "astro-link-favicons"
+
+const icon = await getFaviconUrl("https://www.python.org/")
+---
+{icon && <img src={icon} alt="" />}
+```
 
 ## Refresh or remove cached favicons
 

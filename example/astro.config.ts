@@ -1,12 +1,11 @@
 import {unified} from "@astrojs/markdown-remark"
-import astroLinkFavicons from "astro-link-favicons/astro-integration"
-import rehypeLinkFavicons from "astro-link-favicons/rehype-plugin"
+import * as favicons from "astro-link-favicons"
 import {defineConfig} from "astro/config"
 
 export default defineConfig({
   site: "https://example.com",
-  integrations: [astroLinkFavicons],
+  integrations: [favicons.integration],
   markdown: {
-    processor: unified({rehypePlugins: [rehypeLinkFavicons]}),
+    processor: unified({rehypePlugins: [favicons.rehypePlugin]}),
   },
 })

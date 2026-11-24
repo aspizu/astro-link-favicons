@@ -16,6 +16,10 @@
     "README.md"
   ],
   "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./astro-integration": {
       "types": "./dist/astro-integration.d.ts",
       "import": "./dist/astro-integration.js"
