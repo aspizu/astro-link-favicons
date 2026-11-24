@@ -72,7 +72,7 @@ async function _getDomains(file: string, out: Set<string>) {
 
 async function _getAllDomains(dir: string) {
   const paths = await Array.fromAsync(
-    fs.glob(path.join(dir, "**/*.{html,md,mdx,astro}")),
+    fs.glob(path.join(dir, "**/*.{html,md,mdx,astro,HTML,MD,MDX,ASTRO}")),
   )
   const domains: Set<string> = new Set()
   await Promise.all(paths.map((file) => _getDomains(file, domains)))
@@ -171,7 +171,7 @@ async function _downloadFavicon(domain: string) {
   return file
 }
 
-async function _downloadAllFavicons() {
+async function _downloadAllFaviconsInner() {
   if (!srcDir) {
     throw new Error("srcDir uninitialized")
   }
@@ -183,6 +183,18 @@ async function _downloadAllFavicons() {
       }),
     ),
   )
+}
+
+let downloadAllFaviconsPromise: Promise<void> | null = null
+async function _downloadAllFavicons() {
+  downloadAllFaviconsPromise ??= _downloadAllFaviconsInner()
+    .catch((e) => {
+      console.error(e)
+    })
+    .then(() => {
+      downloadAllFaviconsPromise = null
+    })
+  return downloadAllFaviconsPromise
 }
 
 async function _copyToBuildDir(dir: URL) {
@@ -229,14 +241,34 @@ const rehypePlugin: unified.Plugin<[], hast.Root> = () => {
 const integration: AstroIntegration = {
   name: "astro-link-favicons",
   hooks: {
-    "astro:config:setup": async ({config}) => {
+    "astro:config:setup": async ({config, command, updateConfig}) => {
       siteHostname = config.site ? new URL(config.site).hostname : undefined
       faviconPath = path.posix.join("/", config.base, "_astro", "_favicons")
       cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
       await fs.mkdir(cacheDir, {recursive: true})
       srcDir = fileURLToPath(config.srcDir)
+      if (command !== "dev") return
+      updateConfig({
+        vite: {
+          plugins: [
+            {
+              name: "astro-link-favicons:hmr",
+              hotUpdate: {
+                order: "pre",
+                async handler(ctx) {
+                  if (this.environment.name !== "client" || ctx.type === "delete")
+                    return
+                  if (!/\.(html|md|mdx|astro)$/i.test(ctx.file)) return
+                  await _downloadAllFavicons()
+                },
+              },
+            },
+          ],
+        },
+      })
+      await _downloadAllFavicons()
     },
-    "astro:routes:resolved": async () => {
+    "astro:build:start": async () => {
       await _downloadAllFavicons()
     },
     "astro:build:done": async ({dir}) => {
