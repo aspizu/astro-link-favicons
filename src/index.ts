@@ -31,10 +31,19 @@ async function _wget(url: string) {
   }
 }
 
+function _parseURL(text: string): URL | null {
+  try {
+    return new URL(text)
+  } catch {
+    return null
+  }
+}
+
 async function _getDomains(file: string, out: Set<string>) {
   const text = await fs.readFile(file, {encoding: "utf8"})
   for (const link of text.match(/https?:\/\/[^\s<>"']+/gi) ?? []) {
-    const url = new URL(link)
+    const url = _parseURL(link)
+    if (!url) continue
     out.add(url.hostname)
   }
 }
@@ -69,7 +78,7 @@ async function _getCachedFavicon(domain: string) {
     throw new Error("cacheDir uninitialized")
   }
   const paths = await Array.fromAsync(fs.glob(path.join(cacheDir, domain, "*")))
-  return paths.at(0)
+  return paths.at(0) ?? null
 }
 
 async function _downloadFavicon(domain: string) {
@@ -127,17 +136,24 @@ async function _copyToBuildDir(dir: URL) {
 
 const rehypePlugin: unified.Plugin<[], hast.Root> = () => {
   return async (tree) => {
-    const links: hast.Element[] = []
+    const nodes: hast.Element[] = []
+    const filePromises: Promise<string | null>[] = []
     visit(tree, "element", (node) => {
-      if (node.tagName === "a" && node.properties.href) {
-        links.push(node)
-      }
+      if (node.tagName !== "a") return
+      if (!node.properties.href) return
+      if (!node.properties.href.startsWith("https://")) return
+      if (!node.properties.href.startsWith("http://")) return
+      const url = _parseURL(node.properties.href)
+      if (!url) return
+      nodes.push(node)
+      filePromises.push(_getCachedFavicon(url.hostname))
     })
-    for (const link of links) {
-      const url = new URL(link.properties.href!)
-      const file = await _getCachedFavicon(url.hostname)
+    const files = await Promise.all(filePromises)
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]
+      const file = files[i]
       if (!file || !cacheDir) continue
-      link.properties.style = `--favicon: url("_astro/_favicons/${path.relative(cacheDir, file)}")`
+      node.properties.style = `--favicon: url("_astro/_favicons/${path.relative(cacheDir, file)}")`
     }
   }
 }
