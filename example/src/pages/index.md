@@ -35,3 +35,5 @@ and set a breakpoint on the `print` line.
 
 - Find packages on the [Python Package Index](https://pypi.org/).
 - Publish your project's documentation with [Read the Docs](https://readthedocs.org/).
+
+See how to [look up a favicon in Astro frontmatter](./favicon-url/).

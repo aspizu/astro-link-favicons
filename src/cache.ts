@@ -25,6 +25,19 @@ export async function getCachedFavicon(cacheDir: string | null, domain: string) 
   return path.join(dir, icon.name)
 }
 
+export async function getCachedFaviconFiles(cacheDir: string) {
+  const directories = await fs.readdir(cacheDir, {withFileTypes: true})
+  const entries = await Promise.all(
+    directories
+      .filter((entry) => entry.isDirectory())
+      .map(async ({name}) => {
+        const file = await getCachedFavicon(cacheDir, name)
+        return [name, file && path.basename(file)] as const
+      }),
+  )
+  return Object.fromEntries(entries)
+}
+
 async function _isFresh(file: string) {
   const stat = await fs.stat(file).catch((e) => {
     if (e.code === "ENOENT") {

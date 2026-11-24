@@ -9,7 +9,7 @@ export function getExternalHostname(
     return null
   }
   try {
-    const {hostname} = new URL(href)
+    const hostname = new URL(href).hostname
     if (hostname === "." || hostname === ".." || hostname === siteHostname) {
       return null
     }

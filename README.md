@@ -17,15 +17,14 @@ your site's URL to skip absolute links to your own hostname.
 
 ```ts
 import {unified} from "@astrojs/markdown-remark"
-import astroLinkFavicons from "astro-link-favicons/astro-integration"
-import rehypeLinkFavicons from "astro-link-favicons/rehype-plugin"
+import favicons from "astro-link-favicons"
 import {defineConfig} from "astro/config"
 
 export default defineConfig({
   site: "https://example.com",
-  integrations: [astroLinkFavicons],
+  integrations: [favicons.integration],
   markdown: {
-    processor: unified({rehypePlugins: [rehypeLinkFavicons]}),
+    processor: unified({rehypePlugins: [favicons.rehypePlugin]}),
   },
 })
 ```
@@ -51,21 +50,36 @@ Read the [Python beginner's guide](https://www.python.org/about/gettingstarted/)
 
 See the [example site](./example) for a working configuration and Markdown page.
 
+## Look up a favicon
+
+Pass a link to `getFaviconUrl` in Astro frontmatter as a string or `URL`.
+Use the result as an image source. Local links and links without an available
+favicon return `null`.
+
+```astro
+---
+import {getFaviconUrl} from "astro-link-favicons"
+
+const href = "https://www.python.org/"
+const icon = await getFaviconUrl(href)
+---
+<a href={href}>{icon && <img src={icon} width="16" height="16" alt="" />} Python</a>
+```
+
 ## Refresh or remove cached favicons
 
-To force a download for one hostname, delete its cache folder from your Astro
-project root, then restart the dev server or rebuild. This also clears any cached
-download failure for that hostname.
+To refresh one site's icon or retry a failed download, remove that site's cache
+folder, then restart the dev server or rebuild. The following commands assume
+Astro's default cache location and run from your project root.
 
 ```sh
 rm -rf node_modules/.astro/astro-link-favicons/www.python.org
 ```
 
-Removing a link leaves its favicon in the cache. To discard unused icons and
-download fresh copies for the hostnames still present in your source files,
-stop the dev server, clear the favicon cache and generated icons, then rebuild.
+To refresh all icons and discard unused ones, stop the dev server, clear the
+favicon cache, and run a clean build.
 
 ```sh
-rm -rf node_modules/.astro/astro-link-favicons dist/_astro/_favicons
-ASTRO_TELEMETRY_DISABLED=1 pnpm exec astro build
+rm -rf node_modules/.astro/astro-link-favicons
+pnpm exec astro build
 ```

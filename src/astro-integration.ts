@@ -2,29 +2,19 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {fileURLToPath} from "node:url"
 
-import type {AstroIntegration} from "astro"
+import type {HookParameters, ViteUserConfig} from "astro"
 import sirv from "sirv"
 
-import {copyFavicons, downloadFavicon} from "./cache"
-import {faviconConfig} from "./config"
+import {copyFavicons, downloadFavicon, getCachedFaviconFiles} from "./cache"
+import {FaviconConfig, faviconConfig, requireFaviconConfig} from "./config"
 import {getAllDomains} from "./domains"
 
-const FAVICON_DIR = "_astro/_favicons"
-
-let srcDir: string | null = null
-
 async function _downloadAllFaviconsInner() {
-  if (!srcDir) {
-    throw new Error("srcDir uninitialized")
-  }
-  const {cacheDir, siteHostname} = faviconConfig
-  if (!cacheDir) {
-    throw new Error("cacheDir uninitialized")
-  }
-  const domains = [...(await getAllDomains(srcDir, siteHostname))]
+  const config = requireFaviconConfig()
+  const domains = [...(await getAllDomains(config.srcDir, config.siteHostname))]
   await Promise.all(
     domains.map((domain) =>
-      downloadFavicon(cacheDir, domain).catch((e) => {
+      downloadFavicon(config.cacheDir, domain).catch((e) => {
         console.error(e)
       }),
     ),
@@ -32,6 +22,7 @@ async function _downloadAllFaviconsInner() {
 }
 
 let downloadAllFaviconsPromise: Promise<void> | null = null
+
 async function _downloadAllFavicons() {
   downloadAllFaviconsPromise ??= _downloadAllFaviconsInner()
     .catch((e) => {
@@ -43,60 +34,53 @@ async function _downloadAllFavicons() {
   return downloadAllFaviconsPromise
 }
 
-const integration: AstroIntegration = {
-  name: "astro-link-favicons",
-  hooks: {
-    "astro:config:setup": async ({config, command, updateConfig}) => {
-      faviconConfig.siteHostname = config.site
-        ? new URL(config.site).hostname
-        : undefined
-      faviconConfig.faviconPath = path.posix.join("/", config.base, FAVICON_DIR)
-      faviconConfig.cacheDir = path.join(
-        fileURLToPath(config.cacheDir),
-        "astro-link-favicons",
-      )
-      await fs.mkdir(faviconConfig.cacheDir, {recursive: true})
-      srcDir = fileURLToPath(config.srcDir)
-      if (command === "build" || command === "sync") {
-        await _downloadAllFavicons()
-        return
-      }
-      if (command !== "dev") return
-      updateConfig({
-        vite: {
-          plugins: [
-            {
-              name: "astro-link-favicons:hmr",
-              hotUpdate: {
-                order: "pre",
-                async handler(ctx) {
-                  if (this.environment.name !== "client" || ctx.type === "delete")
-                    return
-                  if (!/\.(html|md|mdx|astro)$/i.test(ctx.file)) return
-                  await _downloadAllFavicons()
-                },
-              },
-            },
-          ],
-        },
-      })
+const vitePlugin: NonNullable<ViteUserConfig["plugins"]>[number] = {
+  name: "astro-link-favicons:hmr",
+  hotUpdate: {
+    order: "pre",
+    async handler(ctx) {
+      if (this.environment.name !== "client" || ctx.type === "delete") return
+      if (!/\.(html|md|mdx|astro)$/i.test(ctx.file)) return
       await _downloadAllFavicons()
-    },
-    "astro:build:done": async ({dir}) => {
-      const {cacheDir} = faviconConfig
-      if (!cacheDir) {
-        throw new Error("cacheDir uninitialized")
-      }
-      await copyFavicons(cacheDir, path.join(fileURLToPath(dir), FAVICON_DIR))
-    },
-    "astro:server:setup": async ({server}) => {
-      const {cacheDir} = faviconConfig
-      if (!cacheDir) {
-        throw new Error("cacheDir uninitialized")
-      }
-      server.middlewares.use(`/${FAVICON_DIR}`, sirv(cacheDir, {dev: true}))
     },
   },
 }
 
-export default integration
+export async function configSetup({
+  config,
+  command,
+  updateConfig,
+}: HookParameters<"astro:config:setup">) {
+  const settings = new FaviconConfig(config, config.build.assets)
+  faviconConfig.value = settings
+  await fs.mkdir(settings.cacheDir, {recursive: true})
+  updateConfig({
+    vite: {
+      define: {__ASTRO_LINK_FAVICON_ASSETS_DIR__: JSON.stringify(config.build.assets)},
+    },
+  })
+  if (command === "dev") {
+    updateConfig({vite: {plugins: [vitePlugin]}})
+  } else if (command !== "build" && command !== "sync") return
+  await _downloadAllFavicons()
+  if (command === "build") {
+    const files = await getCachedFaviconFiles(settings.cacheDir)
+    updateConfig({
+      vite: {
+        define: {
+          __ASTRO_LINK_FAVICON_FILES__: JSON.stringify(files),
+        },
+      },
+    })
+  }
+}
+
+export async function buildDone({dir}: HookParameters<"astro:build:done">) {
+  const config = requireFaviconConfig()
+  await copyFavicons(config.cacheDir, path.join(fileURLToPath(dir), config.faviconDir))
+}
+
+export async function serverSetup({server}: HookParameters<"astro:server:setup">) {
+  const config = requireFaviconConfig()
+  server.middlewares.use(`/${config.faviconDir}`, sirv(config.cacheDir, {dev: true}))
+}

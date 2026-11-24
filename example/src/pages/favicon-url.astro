@@ -1,0 +1,19 @@
+---
+import {getFaviconUrl} from "astro-link-favicons"
+
+import Layout from "../layouts/Layout.astro"
+
+const title = "Look up a favicon in Astro frontmatter"
+const href = "https://www.python.org/about/gettingstarted/"
+const favicon = await getFaviconUrl(href)
+---
+
+<Layout frontmatter={{title}}>
+  <h1>{title}</h1>
+  <p>
+    <a href={href}>
+      {favicon && <img src={favicon} width="16" height="16" alt="" />}
+      Python beginner's guide
+    </a>
+  </p>
+</Layout>
