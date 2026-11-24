@@ -11,16 +11,18 @@
   },
   "type": "module",
   "files": [
-    "index.js",
-    "index.js.map",
-    "index.d.ts",
+    "dist",
     "LICENSE",
     "README.md"
   ],
   "exports": {
-    ".": {
-      "types": "./index.d.ts",
-      "import": "./index.js"
+    "./astro-integration": {
+      "types": "./dist/astro-integration.d.ts",
+      "import": "./dist/astro-integration.js"
+    },
+    "./rehype-plugin": {
+      "types": "./dist/rehype-plugin.d.ts",
+      "import": "./dist/rehype-plugin.js"
     }
   },
   "scripts": {

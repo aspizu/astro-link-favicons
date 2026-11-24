@@ -1,8 +1,9 @@
 import {build} from "esbuild"
 
 await build({
-  entryPoints: ["src/index.ts"],
-  outfile: "index.js",
+  entryPoints: ["src/astro-integration.ts", "src/rehype-plugin.ts"],
+  outdir: "dist",
+  splitting: true,
   bundle: true,
   minify: true,
   sourcemap: true,
