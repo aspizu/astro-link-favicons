@@ -27,6 +27,7 @@ export default defineConfig({
     "no-underscore-dangle": "off",
     "sort-imports": "off",
     "max-depth": "error",
+    "max-lines": ["error", {max: 200, skipBlankLines: true, skipComments: true}],
     "typescript/no-deprecated": "error",
     complexity: "error",
     "no-empty": "error",
