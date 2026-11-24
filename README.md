@@ -2,6 +2,8 @@
 
 Display favicons beside external links in Astro Markdown pages.
 
+![Python favicons beside links to the beginner’s guide, pathlib, and Counter](./example/screenshot.png)
+
 ## Usage
 
 Install the package and the Markdown processor in your Astro project.
