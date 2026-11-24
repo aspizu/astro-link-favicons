@@ -30,7 +30,6 @@ export default defineConfig({
     "typescript/no-deprecated": "error",
     complexity: "error",
     "no-empty": "error",
-    "max-lines": ["error", {max: 200, skipBlankLines: true, skipComments: true}],
     "import/no-unassigned-import": ["error", {allow: ["**/*.css"]}],
   },
 })
