@@ -2,7 +2,7 @@ import * as path from "node:path"
 
 import {getCachedFavicon} from "./cache"
 import {FaviconConfig} from "./config"
-import {getExternalHostname} from "./domains"
+import {getExternalHostname} from "./utils"
 
 declare const __ASTRO_LINK_FAVICON_ASSETS_DIR__: string
 declare const __ASTRO_LINK_FAVICON_FILES__: Record<string, string | null>

@@ -2,33 +2,35 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {fileURLToPath} from "node:url"
 
-import type {HookParameters, ViteUserConfig} from "astro"
+import type {AstroIntegrationLogger, HookParameters, ViteUserConfig} from "astro"
 import sirv from "sirv"
 
 import {copyFavicons, downloadFavicon, getCachedFaviconFiles} from "./cache"
 import {FaviconConfig, faviconConfig, requireFaviconConfig} from "./config"
 import {getAllDomains} from "./domains"
+import {stringifyError} from "./utils"
 
-async function _downloadAllFaviconsInner() {
+async function _downloadAllFaviconsInner(logger: AstroIntegrationLogger) {
   const config = requireFaviconConfig()
   const domains = [...(await getAllDomains(config.srcDir, config.siteHostname))]
   await Promise.all(
     domains.map((domain) =>
-      downloadFavicon(config.cacheDir, domain, config.overrides.get(domain)).catch(
-        (e) => {
-          console.error(e)
-        },
-      ),
+      downloadFavicon(
+        config.cacheDir,
+        domain,
+        logger,
+        config.overrides.get(domain),
+      ).catch((e) => logger.warn(`${domain}: ${stringifyError(e)}`)),
     ),
   )
 }
 
 let downloadAllFaviconsPromise: Promise<void> | null = null
 
-async function _downloadAllFavicons() {
-  downloadAllFaviconsPromise ??= _downloadAllFaviconsInner()
+async function _downloadAllFavicons(logger: AstroIntegrationLogger) {
+  downloadAllFaviconsPromise ??= _downloadAllFaviconsInner(logger)
     .catch((e) => {
-      console.error(e)
+      logger.warn(stringifyError(e))
     })
     .then(() => {
       downloadAllFaviconsPromise = null
@@ -36,21 +38,25 @@ async function _downloadAllFavicons() {
   return downloadAllFaviconsPromise
 }
 
-const vitePlugin: NonNullable<ViteUserConfig["plugins"]>[number] = {
-  name: "astro-link-favicons:hmr",
-  hotUpdate: {
-    order: "pre",
-    async handler(ctx) {
-      if (this.environment.name !== "client" || ctx.type === "delete") return
-      const isSourceFile = /\.(html|md|mdx|astro)$/i.test(ctx.file)
-      if (!isSourceFile) return
-      await _downloadAllFavicons()
+function _vitePlugin(
+  logger: AstroIntegrationLogger,
+): NonNullable<ViteUserConfig["plugins"]>[number] {
+  return {
+    name: "astro-link-favicons:hmr",
+    hotUpdate: {
+      order: "pre",
+      async handler(ctx) {
+        if (this.environment.name !== "client" || ctx.type === "delete") return
+        const isSourceFile = /\.(html|md|mdx|astro)$/i.test(ctx.file)
+        if (!isSourceFile) return
+        await _downloadAllFavicons(logger)
+      },
     },
-  },
+  }
 }
 
 export async function configSetup(
-  {config, command, updateConfig}: HookParameters<"astro:config:setup">,
+  {config, command, updateConfig, logger}: HookParameters<"astro:config:setup">,
   overrides?: Record<string, string>,
 ) {
   const settings = new FaviconConfig(config, config.build.assets, overrides)
@@ -62,9 +68,9 @@ export async function configSetup(
     },
   })
   if (command === "dev") {
-    updateConfig({vite: {plugins: [vitePlugin]}})
+    updateConfig({vite: {plugins: [_vitePlugin(logger)]}})
   } else if (command !== "build" && command !== "sync") return
-  await _downloadAllFavicons()
+  await _downloadAllFavicons(logger)
   if (command === "build") {
     const files = await getCachedFaviconFiles(settings.cacheDir)
     updateConfig({

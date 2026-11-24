@@ -33,12 +33,16 @@ export class FaviconConfig {
         host.hostname === "." ||
         host.hostname === ".."
       ) {
-        throw new Error(`Invalid favicon override hostname: ${key}`)
+        throw new Error(
+          `Invalid favicon override hostname: ${key}. Use a bare hostname such as example.org as the override key.`,
+        )
       }
       const url = URL.parse(value)
       const hasHttpPrefix = /^https?:\/\//i.test(value)
       if (!url || !hasHttpPrefix || !["http:", "https:"].includes(url.protocol)) {
-        throw new Error(`Expected an absolute HTTP(S) favicon URL for ${key}`)
+        throw new Error(
+          `Expected an absolute HTTP(S) favicon URL for ${key}. Set the override value to a full image URL such as https://example.org/icon.png.`,
+        )
       }
       this.overrides.set(host.hostname, url)
     }
