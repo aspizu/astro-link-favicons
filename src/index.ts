@@ -11,6 +11,8 @@ import type * as unified from "unified"
 import {visit} from "unist-util-visit"
 
 const EXTENSIONS = new Set([".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp"])
+const CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
+const FAILURE_MARKER = ".failed"
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -40,7 +42,10 @@ function _getExternalHostname(href: string): string | null {
   }
   try {
     const {hostname} = new URL(href)
-    return hostname === siteHostname ? null : hostname
+    if (hostname === "." || hostname === ".." || hostname === siteHostname) {
+      return null
+    }
+    return hostname
   } catch {
     return null
   }
@@ -85,37 +90,75 @@ async function _getCachedFavicon(domain: string) {
   if (!cacheDir) {
     throw new Error("cacheDir uninitialized")
   }
-  const paths = await Array.fromAsync(fs.glob(path.join(cacheDir, domain, "*")))
-  return paths.at(0) ?? null
+  const dir = path.join(cacheDir, domain)
+  const entries = await fs.readdir(dir, {withFileTypes: true}).catch((e) => {
+    if (e.code === "ENOENT") {
+      return []
+    }
+    throw e
+  })
+  const icon = entries.find((e) => e.isFile() && EXTENSIONS.has(path.extname(e.name)))
+  if (!icon) {
+    return null
+  }
+  return path.join(dir, icon.name)
+}
+
+async function _fetchFavicon(domain: string) {
+  const faviconURL = await _getFaviconURL(domain)
+  if (!faviconURL) {
+    return null
+  }
+  const extension = path.posix.extname(new URL(faviconURL).pathname).toLowerCase()
+  if (!EXTENSIONS.has(extension)) {
+    return null
+  }
+  const res = await _wget(faviconURL)
+  const bytes = new Uint8Array(await res.arrayBuffer())
+  return {bytes, extension}
+}
+
+async function _isFresh(file: string) {
+  const stat = await fs.stat(file).catch((e) => {
+    if (e.code === "ENOENT") {
+      return null
+    }
+    throw e
+  })
+  if (!stat) {
+    return null
+  }
+  return Date.now() - stat.mtimeMs <= CACHE_MAX_AGE
 }
 
 async function _downloadFavicon(domain: string) {
   if (!cacheDir) {
     throw new Error("cacheDir uninitialized")
   }
-  const faviconURL = await _getFaviconURL(domain)
-  if (!faviconURL) {
-    return false
-  }
   const outdir = path.join(cacheDir, domain)
-  if (
-    await fs
-      .stat(outdir)
-      .then((s) => s.isDirectory())
-      .catch(() => false)
-  ) {
-    return true
+  const marker = path.join(outdir, FAILURE_MARKER)
+  const previous = await _getCachedFavicon(domain)
+  if ((previous && (await _isFresh(previous))) || (await _isFresh(marker))) {
+    return previous
   }
-  const extension = path.posix.extname(new URL(faviconURL).pathname).toLowerCase()
-  if (!EXTENSIONS.has(extension)) {
-    return false
+  const favicon = await _fetchFavicon(domain).catch((e) => {
+    console.error(e)
+    return null
+  })
+  await fs.mkdir(outdir, {recursive: true})
+  if (!favicon) {
+    await fs.writeFile(marker, "")
+    return previous
   }
-  const res = await _wget(faviconURL)
-  const bytes = new Uint8Array(await res.arrayBuffer())
+  const {bytes, extension} = favicon
   const hash = crypto.createHash("sha256").update(bytes).digest("base64url").slice(0, 8)
-  await fs.mkdir(outdir, {recursive: true}).catch(() => {})
-  await fs.writeFile(path.join(outdir, `${hash}${extension}`), bytes)
-  return true
+  const file = path.join(outdir, `${hash}${extension}`)
+  await fs.writeFile(file, bytes)
+  if (previous && previous !== file) {
+    await fs.rm(previous, {force: true})
+  }
+  await fs.rm(marker, {force: true})
+  return file
 }
 
 async function _downloadAllFavicons() {
@@ -124,16 +167,11 @@ async function _downloadAllFavicons() {
   }
   const domains = [...(await _getAllDomains(srcDir))]
   await Promise.all(
-    domains.map(async (domain) => {
-      try {
-        await _downloadFavicon(domain)
-        const favicon = await _getCachedFavicon(domain)
-        if (!favicon) return
-        console.log(favicon)
-      } catch (e) {
-        console.error(e instanceof Error ? (e.stack ?? e.message) : String(e))
-      }
-    }),
+    domains.map((domain) =>
+      _downloadFavicon(domain).catch((e) => {
+        console.error(e)
+      }),
+    ),
   )
 }
 
@@ -142,8 +180,11 @@ async function _copyToBuildDir(dir: URL) {
     throw new Error("cacheDir uninitialized")
   }
   const out = path.join(fileURLToPath(dir), "_astro", "_favicons")
-  await fs.mkdir(path.dirname(out), {recursive: true}).catch(() => {})
-  await fs.cp(cacheDir, out, {recursive: true})
+  await fs.mkdir(path.dirname(out), {recursive: true})
+  await fs.cp(cacheDir, out, {
+    recursive: true,
+    filter: (file) => path.basename(file) !== FAILURE_MARKER,
+  })
 }
 
 const rehypePlugin: unified.Plugin<[], hast.Root> = () => {
@@ -182,7 +223,7 @@ const integration: AstroIntegration = {
       siteHostname = config.site ? new URL(config.site).hostname : undefined
       faviconPath = path.posix.join("/", config.base, "_astro", "_favicons")
       cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
-      await fs.mkdir(cacheDir, {recursive: true}).catch(() => {})
+      await fs.mkdir(cacheDir, {recursive: true})
       srcDir = fileURLToPath(config.srcDir)
     },
     "astro:routes:resolved": async () => {
