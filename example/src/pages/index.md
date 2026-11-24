@@ -5,7 +5,7 @@ title: A Python reading list
 
 # A Python reading list
 
-Start with the [Python beginner’s guide](https://www.python.org/about/gettingstarted/), then jump to [project resources](#project-resources).
+Start with the [Python beginner's guide](https://www.python.org/about/gettingstarted/), then jump to [project resources](#project-resources).
 
 ## Try a small script
 
