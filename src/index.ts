@@ -53,7 +53,7 @@ function _getExternalHostname(href: string): string | null {
 
 async function _getDomains(file: string, out: Set<string>) {
   const text = await fs.readFile(file, {encoding: "utf8"})
-  for (const link of text.match(/https?:\/\/[^\s<>"']+/gi) ?? []) {
+  for (const link of text.match(/https?:\/\/[^\s<>"'()]+/gi) ?? []) {
     const hostname = _getExternalHostname(link)
     if (hostname) {
       out.add(hostname)
