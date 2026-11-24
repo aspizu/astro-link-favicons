@@ -3,17 +3,20 @@ import {fileURLToPath} from "node:url"
 
 import type {AstroConfig} from "astro"
 
-export const faviconDir = "_astro/_favicons"
-
 export class FaviconConfig {
   readonly cacheDir: string
+  readonly faviconDir: string
   readonly faviconPath: string
   readonly srcDir: string
   readonly siteHostname: string | undefined
 
-  constructor(config: Pick<AstroConfig, "base" | "cacheDir" | "srcDir" | "site">) {
+  constructor(
+    config: Pick<AstroConfig, "base" | "cacheDir" | "srcDir" | "site">,
+    assetsDir: string,
+  ) {
     this.cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
-    this.faviconPath = path.posix.join("/", config.base, faviconDir)
+    this.faviconDir = path.posix.join(assetsDir, "_favicons")
+    this.faviconPath = path.posix.join("/", config.base, this.faviconDir)
     this.srcDir = fileURLToPath(config.srcDir)
     this.siteHostname = config.site ? new URL(config.site).hostname : undefined
   }

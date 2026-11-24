@@ -6,7 +6,7 @@ import type {HookParameters, ViteUserConfig} from "astro"
 import sirv from "sirv"
 
 import {copyFavicons, downloadFavicon, getCachedFaviconFiles} from "./cache"
-import {FaviconConfig, faviconConfig, faviconDir, requireFaviconConfig} from "./config"
+import {FaviconConfig, faviconConfig, requireFaviconConfig} from "./config"
 import {getAllDomains} from "./domains"
 
 async function _downloadAllFaviconsInner() {
@@ -51,10 +51,14 @@ export async function configSetup({
   command,
   updateConfig,
 }: HookParameters<"astro:config:setup">) {
-  const settings = new FaviconConfig(config)
+  const settings = new FaviconConfig(config, config.build.assets)
   faviconConfig.value = settings
   await fs.mkdir(settings.cacheDir, {recursive: true})
-  updateConfig({vite: {ssr: {noExternal: ["astro-link-favicons"]}}})
+  updateConfig({
+    vite: {
+      define: {__ASTRO_LINK_FAVICON_ASSETS_DIR__: JSON.stringify(config.build.assets)},
+    },
+  })
   if (command === "dev") {
     updateConfig({vite: {plugins: [vitePlugin]}})
   } else if (command !== "build" && command !== "sync") return
@@ -73,10 +77,10 @@ export async function configSetup({
 
 export async function buildDone({dir}: HookParameters<"astro:build:done">) {
   const config = requireFaviconConfig()
-  await copyFavicons(config.cacheDir, path.join(fileURLToPath(dir), faviconDir))
+  await copyFavicons(config.cacheDir, path.join(fileURLToPath(dir), config.faviconDir))
 }
 
 export async function serverSetup({server}: HookParameters<"astro:server:setup">) {
   const config = requireFaviconConfig()
-  server.middlewares.use(`/${faviconDir}`, sirv(config.cacheDir, {dev: true}))
+  server.middlewares.use(`/${config.faviconDir}`, sirv(config.cacheDir, {dev: true}))
 }

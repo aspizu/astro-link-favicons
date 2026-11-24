@@ -52,34 +52,34 @@ See the [example site](./example) for a working configuration and Markdown page.
 
 ## Look up a favicon
 
-Use `getFaviconUrl` in Astro frontmatter to get a URL under `_astro/_favicons/`
-with the site's configured `base` path. It accepts a
-string or `URL` and returns `null` for local links or when no favicon is cached.
+Pass a link to `getFaviconUrl` in Astro frontmatter as a string or `URL`.
+Use the result as an image source. Local links and links without an available
+favicon return `null`.
 
 ```astro
 ---
 import {getFaviconUrl} from "astro-link-favicons"
 
-const icon = await getFaviconUrl("https://www.python.org/")
+const href = "https://www.python.org/"
+const icon = await getFaviconUrl(href)
 ---
-{icon && <img src={icon} alt="" />}
+<a href={href}>{icon && <img src={icon} width="16" height="16" alt="" />} Python</a>
 ```
 
 ## Refresh or remove cached favicons
 
-To force a download for one hostname, delete its cache folder from your Astro
-project root, then restart the dev server or rebuild. This also clears any cached
-download failure for that hostname.
+To refresh one site's icon or retry a failed download, remove that site's cache
+folder, then restart the dev server or rebuild. The following commands assume
+Astro's default cache location and run from your project root.
 
 ```sh
 rm -rf node_modules/.astro/astro-link-favicons/www.python.org
 ```
 
-Removing a link leaves its favicon in the cache. To discard unused icons and
-download fresh copies for the hostnames still present in your source files,
-stop the dev server, clear the favicon cache and generated icons, then rebuild.
+To refresh all icons and discard unused ones, stop the dev server, clear the
+favicon cache, and run a clean build.
 
 ```sh
-rm -rf node_modules/.astro/astro-link-favicons dist/_astro/_favicons
-ASTRO_TELEMETRY_DISABLED=1 pnpm exec astro build
+rm -rf node_modules/.astro/astro-link-favicons
+pnpm exec astro build
 ```

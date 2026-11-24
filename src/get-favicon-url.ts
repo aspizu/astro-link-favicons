@@ -4,6 +4,7 @@ import {getCachedFavicon} from "./cache"
 import {FaviconConfig} from "./config"
 import {getExternalHostname} from "./domains"
 
+declare const __ASTRO_LINK_FAVICON_ASSETS_DIR__: string
 declare const __ASTRO_LINK_FAVICON_FILES__: Record<string, string | null>
 
 export async function lookupFavicon(href: string | URL, config: FaviconConfig) {
@@ -22,5 +23,8 @@ export async function lookupFavicon(href: string | URL, config: FaviconConfig) {
 
 export async function getFaviconUrl(href: string | URL): Promise<string | null> {
   const config = await import("astro:config/server")
-  return lookupFavicon(href, new FaviconConfig(config))
+  return lookupFavicon(
+    href,
+    new FaviconConfig(config, __ASTRO_LINK_FAVICON_ASSETS_DIR__),
+  )
 }
