@@ -122,7 +122,8 @@ async function _downloadIcon(url: URL, extension: string) {
 
 function _getIconLinks(html: string, base: string) {
   const $ = cheerio.load(html)
-  const links = $('link[rel~="icon" i][href]')
+  const links = $("html > head, html > body")
+    .children('link[rel~="icon" i][href]')
     .get()
     .map((link) => link.attribs)
     .filter(({href}) => href.trim())
