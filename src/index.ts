@@ -22,6 +22,7 @@ const EXTENSIONS = new Set([
 ])
 const CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 const FAILURE_MARKER = ".failed"
+const FAVICON_DIR = "_astro/_favicons"
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -201,7 +202,7 @@ async function _copyToBuildDir(dir: URL) {
   if (!cacheDir) {
     throw new Error("cacheDir uninitialized")
   }
-  const out = path.join(fileURLToPath(dir), "_astro", "_favicons")
+  const out = path.join(fileURLToPath(dir), FAVICON_DIR)
   await fs.mkdir(path.dirname(out), {recursive: true})
   await fs.cp(cacheDir, out, {
     recursive: true,
@@ -243,10 +244,14 @@ const integration: AstroIntegration = {
   hooks: {
     "astro:config:setup": async ({config, command, updateConfig}) => {
       siteHostname = config.site ? new URL(config.site).hostname : undefined
-      faviconPath = path.posix.join("/", config.base, "_astro", "_favicons")
+      faviconPath = path.posix.join("/", config.base, FAVICON_DIR)
       cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
       await fs.mkdir(cacheDir, {recursive: true})
       srcDir = fileURLToPath(config.srcDir)
+      if (command === "build" || command === "sync") {
+        await _downloadAllFavicons()
+        return
+      }
       if (command !== "dev") return
       updateConfig({
         vite: {
@@ -268,9 +273,6 @@ const integration: AstroIntegration = {
       })
       await _downloadAllFavicons()
     },
-    "astro:build:start": async () => {
-      await _downloadAllFavicons()
-    },
     "astro:build:done": async ({dir}) => {
       await _copyToBuildDir(dir)
     },
@@ -278,10 +280,7 @@ const integration: AstroIntegration = {
       if (!cacheDir) {
         throw new Error("cacheDir uninitialized")
       }
-      if (!faviconPath) {
-        throw new Error("faviconPath uninitialized")
-      }
-      server.middlewares.use(faviconPath, sirv(cacheDir, {dev: true}))
+      server.middlewares.use(`/${FAVICON_DIR}`, sirv(cacheDir, {dev: true}))
     },
   },
 }
