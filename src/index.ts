@@ -15,6 +15,8 @@ const UA =
 
 let srcDir: string | null = null
 let cacheDir: string | null = null
+let faviconPath: string | null = null
+let siteHostname: string | undefined
 
 async function _wget(url: string) {
   try {
@@ -31,9 +33,13 @@ async function _wget(url: string) {
   }
 }
 
-function _parseURL(text: string): URL | null {
+function _getExternalHostname(href: string): string | null {
+  if (!/^https?:\/\//i.test(href)) {
+    return null
+  }
   try {
-    return new URL(text)
+    const {hostname} = new URL(href)
+    return hostname === siteHostname ? null : hostname
   } catch {
     return null
   }
@@ -42,9 +48,10 @@ function _parseURL(text: string): URL | null {
 async function _getDomains(file: string, out: Set<string>) {
   const text = await fs.readFile(file, {encoding: "utf8"})
   for (const link of text.match(/https?:\/\/[^\s<>"']+/gi) ?? []) {
-    const url = _parseURL(link)
-    if (!url) continue
-    out.add(url.hostname)
+    const hostname = _getExternalHostname(link)
+    if (hostname) {
+      out.add(hostname)
+    }
   }
 }
 
@@ -102,7 +109,8 @@ async function _downloadFavicon(domain: string) {
   const bytes = new Uint8Array(await res.arrayBuffer())
   const hash = crypto.createHash("sha256").update(bytes).digest("base64url").slice(0, 8)
   await fs.mkdir(outdir, {recursive: true}).catch(() => {})
-  await fs.writeFile(path.join(outdir, `${hash}${path.extname(faviconURL)}`), bytes)
+  const extension = path.posix.extname(new URL(faviconURL).pathname)
+  await fs.writeFile(path.join(outdir, `${hash}${extension}`), bytes)
   return true
 }
 
@@ -140,20 +148,25 @@ const rehypePlugin: unified.Plugin<[], hast.Root> = () => {
     const filePromises: Promise<string | null>[] = []
     visit(tree, "element", (node) => {
       if (node.tagName !== "a") return
-      if (!node.properties.href) return
-      if (!node.properties.href.startsWith("https://")) return
-      if (!node.properties.href.startsWith("http://")) return
-      const url = _parseURL(node.properties.href)
-      if (!url) return
+      const href = node.properties.href
+      if (!href) return
+      const hostname = _getExternalHostname(href)
+      if (!hostname) return
       nodes.push(node)
-      filePromises.push(_getCachedFavicon(url.hostname))
+      filePromises.push(_getCachedFavicon(hostname))
     })
     const files = await Promise.all(filePromises)
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i]
       const file = files[i]
       if (!file || !cacheDir) continue
-      node.properties.style = `--favicon: url("_astro/_favicons/${path.relative(cacheDir, file)}")`
+      const relativeURL = path
+        .relative(cacheDir, file)
+        .split(path.sep)
+        .map(encodeURIComponent)
+        .join("/")
+      const style = node.properties.style
+      node.properties.style = `${style ? `${style}; ` : ""}--favicon: url("${faviconPath}/${relativeURL}")`
     }
   }
 }
@@ -162,6 +175,8 @@ const integration: AstroIntegration = {
   name: "astro-link-favicons",
   hooks: {
     "astro:config:setup": async ({config}) => {
+      siteHostname = config.site ? new URL(config.site).hostname : undefined
+      faviconPath = path.posix.join("/", config.base, "_astro", "_favicons")
       cacheDir = path.join(fileURLToPath(config.cacheDir), "astro-link-favicons")
       await fs.mkdir(cacheDir, {recursive: true}).catch(() => {})
       srcDir = fileURLToPath(config.srcDir)
@@ -176,8 +191,10 @@ const integration: AstroIntegration = {
       if (!cacheDir) {
         throw new Error("cacheDir uninitialized")
       }
-      const base = server.config.base.replace(/\/+$/, "")
-      server.middlewares.use(`${base}/_astro/_favicons`, sirv(cacheDir))
+      if (!faviconPath) {
+        throw new Error("faviconPath uninitialized")
+      }
+      server.middlewares.use(faviconPath, sirv(cacheDir))
     },
   },
 }

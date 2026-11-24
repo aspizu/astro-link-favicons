@@ -10,16 +10,24 @@
     "url": "https://aspiz.uk"
   },
   "type": "module",
+  "files": [
+    "index.js",
+    "index.js.map",
+    "index.d.ts",
+    "LICENSE",
+    "README.md"
+  ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./index.d.ts",
+      "import": "./index.js"
     }
   },
   "scripts": {
     "lint": "oxlint",
     "typecheck": "tsc",
-    "build": "tsc -p tsconfig.build.json && node esbuild.config.ts"
+    "build": "tsc -p tsconfig.build.json && node esbuild.config.ts",
+    "prepack": "pnpm run build"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
