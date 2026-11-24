@@ -92,10 +92,6 @@ export async function downloadFavicon(
   })
   await fs.mkdir(outdir, {recursive: true})
   if (!favicon) {
-    if (override && previous) {
-      await fs.rm(previous, {force: true})
-      previous = null
-    }
     await fs.writeFile(marker, "failed\n")
     return previous
   }
