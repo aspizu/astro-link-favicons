@@ -48,15 +48,6 @@ export async function fetchFavicon(domain: string) {
     return null
   }
   const res = await _wget(faviconURL.href)
-  const bytes = Buffer.from(await res.arrayBuffer())
-  if (extension === ".svg") {
-    const image = `data:image/svg+xml;base64,${bytes.toString("base64")}`
-    return {
-      bytes: Buffer.from(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><image width="32" height="32" href="${image}"/></svg>`,
-      ),
-      extension,
-    }
-  }
+  const bytes = new Uint8Array(await res.arrayBuffer())
   return {bytes, extension}
 }
