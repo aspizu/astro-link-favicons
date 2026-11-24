@@ -62,7 +62,7 @@ export async function downloadFavicon(
   const outdir = path.join(cacheDir, domain)
   const marker = path.join(outdir, FAILURE_MARKER)
   const overrideFile = path.join(outdir, OVERRIDE_MARKER)
-  const overrideUrl = override?.href
+  const overrideUrl = override?.href ?? null
   const cachedOverrideUrl = await fs.readFile(overrideFile, "utf8").catch((error) => {
     if (error.code !== "ENOENT") {
       throw error
