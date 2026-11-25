@@ -2,7 +2,10 @@ import * as crypto from "node:crypto"
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 
+import type {AstroIntegrationLogger} from "astro"
+
 import {EXTENSIONS, fetchFavicon} from "./fetch"
+import {stringifyError} from "./utils"
 
 const CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000
 const FAILURE_MARKER = ".failed"
@@ -57,6 +60,7 @@ async function _isFresh(file: string) {
 export async function downloadFavicon(
   cacheDir: string,
   domain: string,
+  logger: AstroIntegrationLogger,
   override?: URL,
 ) {
   const outdir = path.join(cacheDir, domain)
@@ -86,8 +90,10 @@ export async function downloadFavicon(
   if ((previous && (await _isFresh(previous))) || (await _isFresh(marker))) {
     return previous
   }
-  const favicon = await fetchFavicon(domain, override).catch((e) => {
-    console.error(e)
+  const favicon = await fetchFavicon(domain, logger, override).catch((e) => {
+    logger.warn(
+      `${domain}: ${stringifyError(e)}. Set a favicon override to a working image URL.`,
+    )
     return null
   })
   await fs.mkdir(outdir, {recursive: true})

@@ -1,6 +1,9 @@
 import * as path from "node:path"
 
+import type {AstroIntegrationLogger} from "astro"
 import * as cheerio from "cheerio"
+
+import {wget} from "./utils"
 
 export const EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
   ".svg": ["image/svg+xml", "image/svg"],
@@ -11,19 +14,6 @@ export const EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
   ".jpg": ["image/jpeg", "image/jpg"],
   ".webp": ["image/webp"],
   ".ico": ["image/vnd.microsoft.icon", "image/x-icon", "image/ico"],
-}
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-
-async function _wget(url: string) {
-  const res = await fetch(url, {
-    headers: {"User-Agent": UA},
-    signal: AbortSignal.timeout(5_000),
-  })
-  if (!res.ok) {
-    throw new Error(`failed to fetch ${url}:\n${res.status} ${res.statusText}`)
-  }
-  return res
 }
 
 interface IconLink {
@@ -106,8 +96,16 @@ function _selectIcon(links: IconLink[]) {
   return _largestIcon(icons.map((link) => ({link, extension: ".ico"})))
 }
 
-async function _downloadIcon(url: URL, extension?: string) {
-  const res = await _wget(url.href)
+async function _downloadIcon(
+  url: URL,
+  domain: string,
+  logger: AstroIntegrationLogger,
+  extension?: string,
+) {
+  const res = await wget(url, domain, logger)
+  if (!res) {
+    return null
+  }
   const contentType = res.headers.get("content-type")
   extension ??= _iconExtension({url: new URL(res.url), contentType})
   const isHtml = /^(?:text\/html|application\/xhtml\+xml)\b/i.test(contentType ?? "")
@@ -152,18 +150,22 @@ function _getIconLinks(html: string, base: string) {
   return Array.from(icons.values())
 }
 
-export async function fetchFavicon(domain: string, override?: URL) {
+export async function fetchFavicon(
+  domain: string,
+  logger: AstroIntegrationLogger,
+  override?: URL,
+) {
   if (override) {
-    return _downloadIcon(override)
+    return _downloadIcon(override, domain, logger)
   }
-  const res = await _wget(`https://${domain}/`)
+  const res = await wget(new URL(`https://${domain}/`), domain, logger)
+  if (!res) {
+    return null
+  }
   const links = _getIconLinks(await res.text(), res.url)
   const selected = _selectIcon(links)
   if (!selected) {
     return null
   }
-  return _downloadIcon(selected.link.url, selected.extension).catch((error) => {
-    console.error(error)
-    return null
-  })
+  return _downloadIcon(selected.link.url, domain, logger, selected.extension)
 }

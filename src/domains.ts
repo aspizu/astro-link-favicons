@@ -1,24 +1,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 
-export function getExternalHostname(
-  href: string,
-  siteHostname: string | undefined,
-): string | null {
-  const hasHttpPrefix = /^https?:\/\//i.test(href)
-  if (!hasHttpPrefix) {
-    return null
-  }
-  try {
-    const hostname = new URL(href).hostname
-    if (hostname === "." || hostname === ".." || hostname === siteHostname) {
-      return null
-    }
-    return hostname
-  } catch {
-    return null
-  }
-}
+import {getExternalHostname} from "./utils"
 
 async function _getDomains(
   file: string,
