@@ -8,7 +8,12 @@ async function _getDomains(
   out: Set<string>,
   siteHostname: string | undefined,
 ) {
-  const text = await fs.readFile(file, {encoding: "utf8"})
+  if (!(await fs.stat(file)).isFile()) return
+  const text = await fs.readFile(file, {encoding: "utf8"}).catch((error: unknown) => {
+    if (error instanceof Error && "code" in error && error.code === "EISDIR") return
+    throw error
+  })
+  if (!text) return
   for (const link of text.match(/https?:\/\/[^\s<>"'()]+/gi) ?? []) {
     const hostname = getExternalHostname(link, siteHostname)
     if (hostname) {
