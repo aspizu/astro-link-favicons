@@ -5,7 +5,7 @@ import type {AstroIntegrationLogger} from "astro"
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-export async function wget(url: URL, logger: AstroIntegrationLogger) {
+export async function wget(url: URL, domain: string, logger: AstroIntegrationLogger) {
   try {
     const res = await fetch(url, {
       headers: {"User-Agent": UA},
@@ -16,17 +16,26 @@ export async function wget(url: URL, logger: AstroIntegrationLogger) {
     }
     await res.body?.cancel()
     const status = `HTTP ${res.status} ${res.statusText}`.trimEnd()
-    const hint =
-      res.status === 429
-        ? "Wait for the rate limit to reset or set an override on another host."
-        : "Set a favicon override pointing to an accessible image URL."
-    logger.warn(`${url.hostname}: ${status}. ${hint}`)
+    if (res.status === 429) {
+      logger.warn(
+        `${url.hostname}: ${status}. Set overrides["${domain}"] to an image on another host.`,
+      )
+    } else {
+      logger.warn(
+        `${url.hostname}: ${status}. Set overrides["${domain}"] to an accessible image URL.`,
+      )
+    }
   } catch (error) {
-    const hint =
-      error instanceof Error && error.name === "TimeoutError"
-        ? "Set a favicon override to an image that responds within 5 seconds."
-        : "Check connectivity from the build machine or set a reachable favicon override."
-    logger.warn(`${url.hostname}: ${stringifyError(error)}. ${hint}`)
+    const message = stringifyError(error)
+    if (error instanceof Error && error.name === "TimeoutError") {
+      logger.warn(
+        `${url.hostname}: ${message}. Set overrides["${domain}"] to an image that responds within 5 seconds.`,
+      )
+    } else {
+      logger.warn(
+        `${url.hostname}: ${message}. Check connectivity from the build machine or set overrides["${domain}"] to a reachable image URL.`,
+      )
+    }
   }
   return null
 }
@@ -52,10 +61,13 @@ export function getExternalHostname(
 }
 
 export function stringifyError(error: unknown): string {
+  let message: string
   if (error instanceof Error) {
-    error = error.message
+    message = error.message
+  } else if (typeof error === "string") {
+    message = error
+  } else {
+    message = inspect(error, {breakLength: Infinity})
   }
-  const message =
-    typeof error === "string" ? error : inspect(error, {breakLength: Infinity})
   return message.split(/\r?\n/, 1)[0]
 }

@@ -98,10 +98,11 @@ function _selectIcon(links: IconLink[]) {
 
 async function _downloadIcon(
   url: URL,
+  domain: string,
   logger: AstroIntegrationLogger,
   extension?: string,
 ) {
-  const res = await wget(url, logger)
+  const res = await wget(url, domain, logger)
   if (!res) {
     return null
   }
@@ -155,9 +156,9 @@ export async function fetchFavicon(
   override?: URL,
 ) {
   if (override) {
-    return _downloadIcon(override, logger)
+    return _downloadIcon(override, domain, logger)
   }
-  const res = await wget(new URL(`https://${domain}/`), logger)
+  const res = await wget(new URL(`https://${domain}/`), domain, logger)
   if (!res) {
     return null
   }
@@ -166,5 +167,5 @@ export async function fetchFavicon(
   if (!selected) {
     return null
   }
-  return _downloadIcon(selected.link.url, logger, selected.extension)
+  return _downloadIcon(selected.link.url, domain, logger, selected.extension)
 }
